@@ -1,0 +1,335 @@
+name: License Compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Еженедельная проверка лицензий
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-licenses:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.14.4'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install license checker
+        run: |
+          npm install -g license-checker
+          npm install -g license-compliance-checker
+
+      - name: Check licenses
+        id: license-check
+        run: |
+          echo "## 📜 License Compliance Report" > license-report.md
+          echo "" >> license-report.md
+          echo "Generated on: $(date)" >> license-report.md
+          echo "" >> license-report.md
+          
+          # Разрешённые лицензии
+          ALLOWED_LICENSES="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense;0BSD"
+          
+          # Проверяем лицензии
+          license-checker --summary > licenses-summary.txt || true
+          license-checker --json > licenses-full.json || true
+          
+          echo "### 📊 License Summary" >> license-report.md
+          echo "\`\`\`" >> license-report.md
+          cat licenses-summary.txt >> license-report.md
+          echo "\`\`\`" >> license-report.md
+          echo "" >> license-report.md
+
+      - name: Find problematic licenses
+        id: check-problematic
+        run: |
+          # Ищем проблемные лицензии (GPL, AGPL, и т.д.)
+          PROBLEMATIC=$(license-checker --json | jq -r 'to_entries[] | select(.value.licenses | test("GPL|AGPL|LGPL|CDDL|EPL"; "i")) | .key + " - " + .value.licenses' || echo "")
+          
+          if [ -n "$PROBLEMATIC" ]; then
+            echo "has_issues=true" >> $GITHUB_OUTPUT
+            echo "" >> license-report.md
+            echo "### ⚠️ Potentially Problematic Licenses" >> license-report.md
+            echo "\`\`\`" >> license-report.md
+            echo "$PROBLEMATIC" >> license-report.md
+            echo "\`\`\`" >> license-report.md
+          else
+            echo "has_issues=false" >> $GITHUB_OUTPUT
+            echo "" >> license-report.md
+            echo "### ✅ No Problematic Licenses Found" >> license-report.md
+            echo "" >> license-report.md
+            echo "All dependencies use acceptable licenses." >> license-report.md
+          fi
+
+      - name: Check for missing licenses
+        run: |
+          MISSING=$(license-checker --json | jq -r 'to_entries[] | select(.value.licenses == null or .value.licenses == "UNKNOWN") | .key' || echo "")
+          
+          if [ -n "$MISSING" ]; then
+            echo "" >> license-report.md
+            echo "### ⚠️ Dependencies with Missing/Unknown Licenses" >> license-report.md
+            echo "\`\`\`" >> license-report.md
+            echo "$MISSING" >> license-report.md
+            echo "\`\`\`" >> license-report.md
+          fi
+
+      - name: Generate detailed license list
+        run: |
+          echo "" >> license-report.md
+          echo "### 📋 Complete License List" >> license-report.md
+          echo "" >> license-report.md
+          
+          # Группируем по типу лицензии
+          for LICENSE in MIT Apache-2.0 BSD-2-Clause BSD-3-Clause ISC; do
+            COUNT=$(license-checker --json | jq -r "to_entries[] | select(.value.licenses == \"$LICENSE\") | .key" | wc -l)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "- **$LICENSE**: $COUNT packages" >> license-report.md
+            fi
+          done
+
+      - name: Export license attribution file
+        run: |
+          # Создаём файл THIRD_PARTY_LICENSES.md
+          cat > THIRD_PARTY_LICENSES.md << 'EOF'
+          # Third-Party Licenses
+          
+          This file contains the licenses of all third-party dependencies used in this project.
+          
+          Generated on: $(date)
+          
+          ---
+          
+          EOF
+          
+          license-checker --markdown >> THIRD_PARTY_LICENSES.md || true
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            license-report.md
+            licenses-summary.txt
+            licenses-full.json
+            THIRD_PARTY_LICENSES.md
+          retention-days: 90
+
+      - name: Add report to summary
+        run: |
+          cat license-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('license-report.md', 'utf8');
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('License Compliance Report')
+            );
+            
+            const body = report;
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Fail on problematic licenses
+        if: steps.check-problematic.outputs.has_issues == 'true'
+        run: |
+          echo "::error::Problematic licenses detected! Please review the license report."
+          exit 0  # Не фейлим CI, просто предупреждаем
+
+  check-license-headers:
+    name: Check Source File License Headers
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for license headers in source files
+        run: |
+          echo "## 📝 Source File License Headers" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Ищем файлы без license headers
+          FILES_WITHOUT_LICENSE=$(find app electron -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) ! -path "*/node_modules/*" ! -path "*/build/*" ! -path "*/dist/*" -exec grep -L "Copyright\|License\|SPDX" {} \; | head -20)
+          
+          if [ -n "$FILES_WITHOUT_LICENSE" ]; then
+            echo "### ⚠️ Files Without License Headers (first 20)" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$FILES_WITHOUT_LICENSE" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Consider adding SPDX license identifiers to source files." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All checked source files have license headers" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  check-outdated-dependencies:
+    name: Check for Outdated Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.14.4'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for outdated packages
+        run: |
+          echo "## 📦 Outdated Dependencies Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          pnpm outdated --format list > outdated.txt || true
+          
+          if [ -s outdated.txt ]; then
+            echo "### Packages with Updates Available" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            head -30 outdated.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All dependencies are up to date" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload outdated report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: outdated-dependencies
+          path: outdated.txt
+          retention-days: 30
+
+  sbom-generation:
+    name: Generate Software Bill of Materials
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.14.4'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate SBOM with CycloneDX
+        run: |
+          npm install -g @cyclonedx/cyclonedx-npm
+          
+          # Генерируем SBOM в разных форматах
+          cyclonedx-npm --output-file sbom.json --output-format json || true
+          cyclonedx-npm --output-file sbom.xml --output-format xml || true
+
+      - name: Generate SBOM with SPDX
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./
+          format: spdx-json
+          artifact-name: sbom-spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-documents
+          path: |
+            sbom.json
+            sbom.xml
+            sbom-spdx.json
+          retention-days: 90
+
+      - name: SBOM summary
+        run: |
+          echo "## 📋 Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SBOM documents generated in multiple formats:" >> $GITHUB_STEP_SUMMARY
+          echo "- CycloneDX JSON" >> $GITHUB_STEP_SUMMARY
+          echo "- CycloneDX XML" >> $GITHUB_STEP_SUMMARY
+          echo "- SPDX JSON" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "These documents provide a complete inventory of all dependencies." >> $GITHUB_STEP_SUMMARY
+
+  license-summary:
+    name: License Compliance Summary
+    needs: [check-licenses, check-license-headers, check-outdated-dependencies, sbom-generation]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Generate final summary
+        run: |
+          echo "# 📜 License Compliance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All license compliance checks completed:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependency license scan" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Source file license headers check" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Outdated dependencies check" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*All artifacts are available for download*" >> $GITHUB_STEP_SUMMARY

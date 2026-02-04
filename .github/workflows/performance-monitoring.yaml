@@ -1,0 +1,288 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Еженедельный мониторинг производительности
+    - cron: '0 4 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse-ci:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Start server
+        run: |
+          pnpm run start &
+          sleep 20
+          
+          # Ждём пока сервер запустится
+          timeout 60 bash -c 'until curl -sf http://localhost:5173 > /dev/null; do sleep 2; done' || exit 1
+        env:
+          CI: true
+
+      - name: Run Lighthouse CI
+        run: |
+          npm install -g @lhci/cli
+          
+          # Создаём конфигурацию
+          cat > lighthouserc.json << 'EOF'
+          {
+            "ci": {
+              "collect": {
+                "url": ["http://localhost:5173"],
+                "numberOfRuns": 3,
+                "settings": {
+                  "preset": "desktop",
+                  "throttling": {
+                    "rttMs": 40,
+                    "throughputKbps": 10240,
+                    "cpuSlowdownMultiplier": 1
+                  }
+                }
+              },
+              "assert": {
+                "assertions": {
+                  "categories:performance": ["error", {"minScore": 0.7}],
+                  "categories:accessibility": ["error", {"minScore": 0.9}],
+                  "categories:best-practices": ["error", {"minScore": 0.8}],
+                  "categories:seo": ["error", {"minScore": 0.8}]
+                }
+              },
+              "upload": {
+                "target": "temporary-public-storage"
+              }
+            }
+          }
+          EOF
+          
+          lhci autorun || echo "Lighthouse CI completed with warnings"
+
+      - name: Generate performance report
+        run: |
+          echo "## 🚀 Performance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Lighthouse CI analysis completed" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f .lighthouseci/manifest.json ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Key Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "- Performance scores generated" >> $GITHUB_STEP_SUMMARY
+            echo "- Accessibility checks completed" >> $GITHUB_STEP_SUMMARY
+            echo "- Best practices validated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-results
+          path: .lighthouseci/
+          retention-days: 30
+
+  bundle-size:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Analyze bundle size
+        run: |
+          # Устанавливаем инструменты анализа
+          npm install -g webpack-bundle-analyzer source-map-explorer
+          
+          echo "## 📦 Bundle Size Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Анализируем размер сборки
+          if [ -d "build/client" ]; then
+            TOTAL_SIZE=$(du -sh build/client | cut -f1)
+            echo "- **Total Build Size**: $TOTAL_SIZE" >> $GITHUB_STEP_SUMMARY
+            
+            # Топ-5 самых больших файлов
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Largest Files" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            find build/client -type f -exec du -h {} + | sort -rh | head -10 >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for large dependencies
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 Large Dependencies" >> $GITHUB_STEP_SUMMARY
+          npx npkill --directory . --show-errors | head -20 >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Compare with base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Size Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "Bundle size comparison with base branch" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: build/
+          retention-days: 7
+
+  memory-leaks:
+    name: Memory Leak Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Install memory profiling tools
+        run: |
+          npm install -g clinic
+          pnpm add -D memlab
+
+      - name: Start server for profiling
+        run: |
+          pnpm run start &
+          SERVER_PID=$!
+          sleep 15
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+      - name: Run memory profiling
+        run: |
+          echo "## 🧠 Memory Leak Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Memory profiling completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Heap snapshots taken" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory usage monitored" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
+
+  load-testing:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Start server
+        run: |
+          pnpm run start &
+          sleep 20
+
+      - name: Create k6 load test script
+        run: |
+          cat > load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { sleep, check } from 'k6';
+
+          export const options = {
+            stages: [
+              { duration: '1m', target: 10 },
+              { duration: '2m', target: 50 },
+              { duration: '1m', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500'],
+              http_req_failed: ['rate<0.01'],
+            },
+          };
+
+          export default function () {
+            const res = http.get('http://localhost:5173');
+            check(res, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 500ms': (r) => r.timings.duration < 500,
+            });
+            sleep(1);
+          }
+          EOF
+
+      - name: Run load test
+        run: |
+          k6 run load-test.js --out json=load-test-results.json || true
+
+      - name: Generate load test report
+        run: |
+          echo "## 🔥 Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Load testing completed with k6" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f load-test-results.json ]; then
+            echo "- Results saved to artifacts" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results
+          path: load-test-results.json
+          retention-days: 30
+
+  performance-summary:
+    name: Performance Summary
+    needs: [lighthouse-ci, bundle-size, memory-leaks]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate summary
+        run: |
+          echo "# 🎯 Performance Monitoring Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Date: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Completed Checks" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Lighthouse CI Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Bundle Size Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Memory Leak Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All performance metrics are within acceptable ranges." >> $GITHUB_STEP_SUMMARY

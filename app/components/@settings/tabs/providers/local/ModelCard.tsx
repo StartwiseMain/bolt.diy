@@ -14,12 +14,12 @@ interface ModelCardProps {
 
 function ModelCard({ model, onUpdate, onDelete }: ModelCardProps) {
   return (
-    <Card className="bg-bolt-elements-background-depth-3 hover:bg-bolt-elements-background-depth-4 transition-all duration-200 shadow-sm hover:shadow-md border border-bolt-elements-borderColor hover:border-purple-500/20">
+    <Card className="bg-wl-elements-background-depth-3 hover:bg-wl-elements-background-depth-4 transition-all duration-200 shadow-sm hover:shadow-md border border-wl-elements-borderColor hover:border-blue-500/20">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h4 className="text-sm font-medium text-bolt-elements-textPrimary font-mono">{model.name}</h4>
+              <h4 className="text-sm font-medium text-wl-elements-textPrimary font-mono">{model.name}</h4>
               {model.status && model.status !== 'idle' && (
                 <span
                   className={classNames('px-2 py-0.5 rounded-full text-xs font-medium', {
@@ -34,7 +34,7 @@ function ModelCard({ model, onUpdate, onDelete }: ModelCardProps) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-4 text-xs text-bolt-elements-textSecondary">
+            <div className="flex items-center gap-4 text-xs text-wl-elements-textSecondary">
               <div className="flex items-center gap-1">
                 <Code className="w-3 h-3" />
                 <span>{model.digest.substring(0, 8)}</span>
@@ -59,8 +59,8 @@ function ModelCard({ model, onUpdate, onDelete }: ModelCardProps) {
               disabled={model.status === 'updating'}
               className={classNames(
                 'flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-all duration-200',
-                'bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 hover:shadow-sm',
-                'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-500/10',
+                'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 hover:shadow-sm',
+                'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-500/10',
               )}
             >
               {model.status === 'updating' ? (
@@ -91,7 +91,7 @@ function ModelCard({ model, onUpdate, onDelete }: ModelCardProps) {
         </div>
         {model.progress && (
           <div className="mt-3 space-y-2">
-            <div className="flex justify-between text-xs text-bolt-elements-textSecondary">
+            <div className="flex justify-between text-xs text-wl-elements-textSecondary">
               <span>{model.progress.status}</span>
               <span>{Math.round((model.progress.current / model.progress.total) * 100)}%</span>
             </div>

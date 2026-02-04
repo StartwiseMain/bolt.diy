@@ -5,7 +5,7 @@ import { defineConfig, presetIcons, presetUno, transformerDirectives } from 'uno
 
 const iconPaths = globSync('./icons/*.svg');
 
-const collectionName = 'bolt';
+const collectionName = 'wl';
 
 const customIconCollection = iconPaths.reduce(
   (acc, iconPath) => {
@@ -35,17 +35,17 @@ const BASE_COLORS = {
     950: '#0A0A0A',
   },
   accent: {
-    50: '#F8F5FF',
-    100: '#F0EBFF',
-    200: '#E1D6FF',
-    300: '#CEBEFF',
-    400: '#B69EFF',
-    500: '#9C7DFF',
-    600: '#8A5FFF',
-    700: '#7645E8',
-    800: '#6234BB',
-    900: '#502D93',
-    950: '#2D1959',
+    50: '#EFF6FF',
+    100: '#DBEAFE',
+    200: '#BFDBFE',
+    300: '#93C5FD',
+    400: '#60A5FA',
+    500: '#3B82F6',
+    600: '#2563EB',
+    700: '#1D4ED8',
+    800: '#1E40AF',
+    900: '#1E3A8A',
+    950: '#172554',
   },
   green: {
     50: '#F0FDF4',
@@ -98,11 +98,11 @@ const COLOR_PRIMITIVES = {
 };
 
 export default defineConfig({
-  safelist: [...Object.keys(customIconCollection[collectionName] || {}).map((x) => `i-bolt:${x}`)],
+  safelist: [...Object.keys(customIconCollection[collectionName] || {}).map((x) => `i-wl:${x}`)],
   shortcuts: {
-    'bolt-ease-cubic-bezier': 'ease-[cubic-bezier(0.4,0,0.2,1)]',
-    'transition-theme': 'transition-[background-color,border-color,color] duration-150 bolt-ease-cubic-bezier',
-    kdb: 'bg-bolt-elements-code-background text-bolt-elements-code-text py-1 px-1.5 rounded-md',
+    'wl-ease-cubic-bezier': 'ease-[cubic-bezier(0.4,0,0.2,1)]',
+    'transition-theme': 'transition-[background-color,border-color,color] duration-150 wl-ease-cubic-bezier',
+    kdb: 'bg-wl-elements-code-background text-wl-elements-code-text py-1 px-1.5 rounded-md',
     'max-w-chat': 'max-w-[var(--chat-max-width)]',
   },
   rules: [
@@ -115,115 +115,115 @@ export default defineConfig({
   theme: {
     colors: {
       ...COLOR_PRIMITIVES,
-      bolt: {
+      wl: {
         elements: {
-          borderColor: 'var(--bolt-elements-borderColor)',
-          borderColorActive: 'var(--bolt-elements-borderColorActive)',
+          borderColor: 'var(--wl-elements-borderColor)',
+          borderColorActive: 'var(--wl-elements-borderColorActive)',
           background: {
             depth: {
-              1: 'var(--bolt-elements-bg-depth-1)',
-              2: 'var(--bolt-elements-bg-depth-2)',
-              3: 'var(--bolt-elements-bg-depth-3)',
-              4: 'var(--bolt-elements-bg-depth-4)',
+              1: 'var(--wl-elements-bg-depth-1)',
+              2: 'var(--wl-elements-bg-depth-2)',
+              3: 'var(--wl-elements-bg-depth-3)',
+              4: 'var(--wl-elements-bg-depth-4)',
             },
           },
-          textPrimary: 'var(--bolt-elements-textPrimary)',
-          textSecondary: 'var(--bolt-elements-textSecondary)',
-          textTertiary: 'var(--bolt-elements-textTertiary)',
+          textPrimary: 'var(--wl-elements-textPrimary)',
+          textSecondary: 'var(--wl-elements-textSecondary)',
+          textTertiary: 'var(--wl-elements-textTertiary)',
           code: {
-            background: 'var(--bolt-elements-code-background)',
-            text: 'var(--bolt-elements-code-text)',
+            background: 'var(--wl-elements-code-background)',
+            text: 'var(--wl-elements-code-text)',
           },
           button: {
             primary: {
-              background: 'var(--bolt-elements-button-primary-background)',
-              backgroundHover: 'var(--bolt-elements-button-primary-backgroundHover)',
-              text: 'var(--bolt-elements-button-primary-text)',
+              background: 'var(--wl-elements-button-primary-background)',
+              backgroundHover: 'var(--wl-elements-button-primary-backgroundHover)',
+              text: 'var(--wl-elements-button-primary-text)',
             },
             secondary: {
-              background: 'var(--bolt-elements-button-secondary-background)',
-              backgroundHover: 'var(--bolt-elements-button-secondary-backgroundHover)',
-              text: 'var(--bolt-elements-button-secondary-text)',
+              background: 'var(--wl-elements-button-secondary-background)',
+              backgroundHover: 'var(--wl-elements-button-secondary-backgroundHover)',
+              text: 'var(--wl-elements-button-secondary-text)',
             },
             danger: {
-              background: 'var(--bolt-elements-button-danger-background)',
-              backgroundHover: 'var(--bolt-elements-button-danger-backgroundHover)',
-              text: 'var(--bolt-elements-button-danger-text)',
+              background: 'var(--wl-elements-button-danger-background)',
+              backgroundHover: 'var(--wl-elements-button-danger-backgroundHover)',
+              text: 'var(--wl-elements-button-danger-text)',
             },
           },
           item: {
-            contentDefault: 'var(--bolt-elements-item-contentDefault)',
-            contentActive: 'var(--bolt-elements-item-contentActive)',
-            contentAccent: 'var(--bolt-elements-item-contentAccent)',
-            contentDanger: 'var(--bolt-elements-item-contentDanger)',
-            backgroundDefault: 'var(--bolt-elements-item-backgroundDefault)',
-            backgroundActive: 'var(--bolt-elements-item-backgroundActive)',
-            backgroundAccent: 'var(--bolt-elements-item-backgroundAccent)',
-            backgroundDanger: 'var(--bolt-elements-item-backgroundDanger)',
+            contentDefault: 'var(--wl-elements-item-contentDefault)',
+            contentActive: 'var(--wl-elements-item-contentActive)',
+            contentAccent: 'var(--wl-elements-item-contentAccent)',
+            contentDanger: 'var(--wl-elements-item-contentDanger)',
+            backgroundDefault: 'var(--wl-elements-item-backgroundDefault)',
+            backgroundActive: 'var(--wl-elements-item-backgroundActive)',
+            backgroundAccent: 'var(--wl-elements-item-backgroundAccent)',
+            backgroundDanger: 'var(--wl-elements-item-backgroundDanger)',
           },
           actions: {
-            background: 'var(--bolt-elements-actions-background)',
+            background: 'var(--wl-elements-actions-background)',
             code: {
-              background: 'var(--bolt-elements-actions-code-background)',
+              background: 'var(--wl-elements-actions-code-background)',
             },
           },
           artifacts: {
-            background: 'var(--bolt-elements-artifacts-background)',
-            backgroundHover: 'var(--bolt-elements-artifacts-backgroundHover)',
-            borderColor: 'var(--bolt-elements-artifacts-borderColor)',
+            background: 'var(--wl-elements-artifacts-background)',
+            backgroundHover: 'var(--wl-elements-artifacts-backgroundHover)',
+            borderColor: 'var(--wl-elements-artifacts-borderColor)',
             inlineCode: {
-              background: 'var(--bolt-elements-artifacts-inlineCode-background)',
-              text: 'var(--bolt-elements-artifacts-inlineCode-text)',
+              background: 'var(--wl-elements-artifacts-inlineCode-background)',
+              text: 'var(--wl-elements-artifacts-inlineCode-text)',
             },
           },
           messages: {
-            background: 'var(--bolt-elements-messages-background)',
-            linkColor: 'var(--bolt-elements-messages-linkColor)',
+            background: 'var(--wl-elements-messages-background)',
+            linkColor: 'var(--wl-elements-messages-linkColor)',
             code: {
-              background: 'var(--bolt-elements-messages-code-background)',
+              background: 'var(--wl-elements-messages-code-background)',
             },
             inlineCode: {
-              background: 'var(--bolt-elements-messages-inlineCode-background)',
-              text: 'var(--bolt-elements-messages-inlineCode-text)',
+              background: 'var(--wl-elements-messages-inlineCode-background)',
+              text: 'var(--wl-elements-messages-inlineCode-text)',
             },
           },
           icon: {
-            success: 'var(--bolt-elements-icon-success)',
-            error: 'var(--bolt-elements-icon-error)',
-            primary: 'var(--bolt-elements-icon-primary)',
-            secondary: 'var(--bolt-elements-icon-secondary)',
-            tertiary: 'var(--bolt-elements-icon-tertiary)',
+            success: 'var(--wl-elements-icon-success)',
+            error: 'var(--wl-elements-icon-error)',
+            primary: 'var(--wl-elements-icon-primary)',
+            secondary: 'var(--wl-elements-icon-secondary)',
+            tertiary: 'var(--wl-elements-icon-tertiary)',
           },
           preview: {
             addressBar: {
-              background: 'var(--bolt-elements-preview-addressBar-background)',
-              backgroundHover: 'var(--bolt-elements-preview-addressBar-backgroundHover)',
-              backgroundActive: 'var(--bolt-elements-preview-addressBar-backgroundActive)',
-              text: 'var(--bolt-elements-preview-addressBar-text)',
-              textActive: 'var(--bolt-elements-preview-addressBar-textActive)',
+              background: 'var(--wl-elements-preview-addressBar-background)',
+              backgroundHover: 'var(--wl-elements-preview-addressBar-backgroundHover)',
+              backgroundActive: 'var(--wl-elements-preview-addressBar-backgroundActive)',
+              text: 'var(--wl-elements-preview-addressBar-text)',
+              textActive: 'var(--wl-elements-preview-addressBar-textActive)',
             },
           },
           terminals: {
-            background: 'var(--bolt-elements-terminals-background)',
-            buttonBackground: 'var(--bolt-elements-terminals-buttonBackground)',
+            background: 'var(--wl-elements-terminals-background)',
+            buttonBackground: 'var(--wl-elements-terminals-buttonBackground)',
           },
-          dividerColor: 'var(--bolt-elements-dividerColor)',
+          dividerColor: 'var(--wl-elements-dividerColor)',
           loader: {
-            background: 'var(--bolt-elements-loader-background)',
-            progress: 'var(--bolt-elements-loader-progress)',
+            background: 'var(--wl-elements-loader-background)',
+            progress: 'var(--wl-elements-loader-progress)',
           },
           prompt: {
-            background: 'var(--bolt-elements-prompt-background)',
+            background: 'var(--wl-elements-prompt-background)',
           },
           sidebar: {
-            dropdownShadow: 'var(--bolt-elements-sidebar-dropdownShadow)',
-            buttonBackgroundDefault: 'var(--bolt-elements-sidebar-buttonBackgroundDefault)',
-            buttonBackgroundHover: 'var(--bolt-elements-sidebar-buttonBackgroundHover)',
-            buttonText: 'var(--bolt-elements-sidebar-buttonText)',
+            dropdownShadow: 'var(--wl-elements-sidebar-dropdownShadow)',
+            buttonBackgroundDefault: 'var(--wl-elements-sidebar-buttonBackgroundDefault)',
+            buttonBackgroundHover: 'var(--wl-elements-sidebar-buttonBackgroundHover)',
+            buttonText: 'var(--wl-elements-sidebar-buttonText)',
           },
           cta: {
-            background: 'var(--bolt-elements-cta-background)',
-            text: 'var(--bolt-elements-cta-text)',
+            background: 'var(--wl-elements-cta-background)',
+            text: 'var(--wl-elements-cta-text)',
           },
         },
       },

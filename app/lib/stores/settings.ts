@@ -23,8 +23,8 @@ export interface Shortcuts {
   toggleTerminal: Shortcut;
 }
 
-export const URL_CONFIGURABLE_PROVIDERS = ['Ollama', 'LMStudio', 'OpenAILike'];
-export const LOCAL_PROVIDERS = ['OpenAILike', 'LMStudio', 'Ollama'];
+export const URL_CONFIGURABLE_PROVIDERS = ['OpenAILike'];
+export const LOCAL_PROVIDERS = ['OpenAILike'];
 
 export type ProviderSetting = Record<string, IProviderConfig>;
 
@@ -336,7 +336,7 @@ const getInitialTabConfiguration = (): TabWindowConfig => {
   }
 
   try {
-    const saved = localStorage.getItem('bolt_tab_configuration');
+    const saved = localStorage.getItem('white_label_tab_configuration');
 
     if (!saved) {
       return defaultConfig;
@@ -369,7 +369,7 @@ export const resetTabConfiguration = () => {
   };
 
   tabConfigurationStore.set(defaultConfig);
-  localStorage.setItem('bolt_tab_configuration', JSON.stringify(defaultConfig));
+  localStorage.setItem('white_label_tab_configuration', JSON.stringify(defaultConfig));
 };
 
 // First, let's define the SettingsStore interface

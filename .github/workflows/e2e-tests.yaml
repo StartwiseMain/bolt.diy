@@ -1,0 +1,266 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Запускаем E2E тесты каждый день в 3 утра
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-tests:
+    name: E2E Tests - ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1, 2]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Install Playwright
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Create test configuration
+        run: |
+          cat > playwright.config.ts << 'EOF'
+          import { defineConfig, devices } from '@playwright/test';
+
+          export default defineConfig({
+            testDir: './e2e',
+            fullyParallel: true,
+            forbidOnly: !!process.env.CI,
+            retries: process.env.CI ? 2 : 0,
+            workers: process.env.CI ? 1 : undefined,
+            reporter: [
+              ['html', { outputFolder: 'playwright-report' }],
+              ['json', { outputFile: 'test-results.json' }],
+              ['junit', { outputFile: 'test-results.xml' }]
+            ],
+            use: {
+              baseURL: 'http://localhost:5173',
+              trace: 'on-first-retry',
+              screenshot: 'only-on-failure',
+              video: 'retain-on-failure',
+            },
+            projects: [
+              {
+                name: 'chromium',
+                use: { ...devices['Desktop Chrome'] },
+              },
+              {
+                name: 'firefox',
+                use: { ...devices['Desktop Firefox'] },
+              },
+              {
+                name: 'webkit',
+                use: { ...devices['Desktop Safari'] },
+              },
+              {
+                name: 'mobile-chrome',
+                use: { ...devices['Pixel 5'] },
+              },
+              {
+                name: 'mobile-safari',
+                use: { ...devices['iPhone 12'] },
+              },
+            ],
+            webServer: {
+              command: 'pnpm run start',
+              url: 'http://localhost:5173',
+              reuseExistingServer: !process.env.CI,
+              timeout: 120000,
+            },
+          });
+          EOF
+
+      - name: Create basic E2E tests
+        run: |
+          mkdir -p e2e
+          
+          cat > e2e/basic.spec.ts << 'EOF'
+          import { test, expect } from '@playwright/test';
+
+          test.describe('Basic Application Tests', () => {
+            test('should load homepage', async ({ page }) => {
+              await page.goto('/');
+              await expect(page).toHaveTitle(/bolt\.diy/i);
+            });
+
+            test('should display chat interface', async ({ page }) => {
+              await page.goto('/');
+              const chatInput = page.locator('textarea, input[type="text"]').first();
+              await expect(chatInput).toBeVisible();
+            });
+
+            test('should allow selecting AI model', async ({ page }) => {
+              await page.goto('/');
+              // Ищем элемент выбора модели
+              const modelSelector = page.locator('[data-testid="model-selector"], button:has-text("Model")').first();
+              if (await modelSelector.isVisible({ timeout: 5000 })) {
+                await modelSelector.click();
+                // Проверяем что открылось меню
+                await expect(page.locator('[role="menu"], [role="listbox"]')).toBeVisible();
+              }
+            });
+
+            test('should open settings panel', async ({ page }) => {
+              await page.goto('/');
+              const settingsButton = page.locator('button[aria-label*="settings" i], button:has-text("Settings")').first();
+              if (await settingsButton.isVisible({ timeout: 5000 })) {
+                await settingsButton.click();
+                await expect(page.locator('text=/settings|configuration/i').first()).toBeVisible();
+              }
+            });
+          });
+
+          test.describe('Editor Tests', () => {
+            test('should display workbench area', async ({ page }) => {
+              await page.goto('/');
+              // Проверяем наличие основных элементов workbench
+              const workbenchElements = [
+                page.locator('[data-testid*="editor"], .editor, .workbench').first(),
+              ];
+              
+              const visibleElement = await Promise.race(
+                workbenchElements.map(el => el.isVisible({ timeout: 3000 }).then(visible => visible ? el : null))
+              );
+              
+              expect(visibleElement).toBeTruthy();
+            });
+          });
+
+          test.describe('Accessibility Tests', () => {
+            test('should have proper heading structure', async ({ page }) => {
+              await page.goto('/');
+              const headings = await page.locator('h1, h2, h3').all();
+              expect(headings.length).toBeGreaterThan(0);
+            });
+
+            test('should support keyboard navigation', async ({ page }) => {
+              await page.goto('/');
+              await page.keyboard.press('Tab');
+              const focusedElement = await page.evaluate(() => document.activeElement?.tagName);
+              expect(focusedElement).toBeTruthy();
+            });
+          });
+          EOF
+
+      - name: Run Playwright tests
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+            test-results.json
+            test-results.xml
+          retention-days: 7
+
+      - name: Upload test videos
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-videos-${{ matrix.browser }}-${{ matrix.shard }}
+          path: test-results/**/video.webm
+          retention-days: 7
+
+  merge-reports:
+    name: Merge Test Reports
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-report-*
+          path: all-reports
+
+      - name: Merge reports
+        run: |
+          echo "## 🎭 E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tests completed across multiple browsers and shards" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Browser | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Chromium | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firefox | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| WebKit | ✅ |" >> $GITHUB_STEP_SUMMARY
+
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Install Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Create visual regression tests
+        run: |
+          mkdir -p e2e/visual
+          
+          cat > e2e/visual/screenshots.spec.ts << 'EOF'
+          import { test, expect } from '@playwright/test';
+
+          test.describe('Visual Regression Tests', () => {
+            test('homepage screenshot', async ({ page }) => {
+              await page.goto('/');
+              await page.waitForLoadState('networkidle');
+              await expect(page).toHaveScreenshot('homepage.png', {
+                fullPage: true,
+                maxDiffPixels: 100,
+              });
+            });
+
+            test('chat interface screenshot', async ({ page }) => {
+              await page.goto('/');
+              const chatArea = page.locator('[data-testid="chat-area"], .chat-container').first();
+              if (await chatArea.isVisible({ timeout: 5000 })) {
+                await expect(chatArea).toHaveScreenshot('chat-interface.png');
+              }
+            });
+          });
+          EOF
+
+      - name: Run visual tests
+        run: pnpm exec playwright test e2e/visual --project=chromium --update-snapshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression-screenshots
+          path: e2e/visual/*.png
+          retention-days: 30

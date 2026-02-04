@@ -1,0 +1,174 @@
+name: Release and Changelog
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Получаем предыдущий тег
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "First release - generating full changelog"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h) by @%an" --no-merges)
+          else
+            echo "Generating changelog from $PREV_TAG to HEAD"
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h) by @%an" --no-merges)
+          fi
+          
+          # Сохраняем в файл для многострочного вывода
+          echo "$CHANGELOG" > changelog.txt
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat changelog.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Categorize changes
+        id: categorize
+        run: |
+          # Разделяем изменения по категориям
+          echo "## 🚀 Features" > categorized_changelog.md
+          git log ${PREV_TAG:-$(git rev-list --max-parents=0 HEAD)}..HEAD --pretty=format:"%s" --no-merges | \
+            grep -i "^feat" | sed 's/^/- /' >> categorized_changelog.md || echo "No new features" >> categorized_changelog.md
+          
+          echo "" >> categorized_changelog.md
+          echo "## 🐛 Bug Fixes" >> categorized_changelog.md
+          git log ${PREV_TAG:-$(git rev-list --max-parents=0 HEAD)}..HEAD --pretty=format:"%s" --no-merges | \
+            grep -i "^fix" | sed 's/^/- /' >> categorized_changelog.md || echo "No bug fixes" >> categorized_changelog.md
+          
+          echo "" >> categorized_changelog.md
+          echo "## 📚 Documentation" >> categorized_changelog.md
+          git log ${PREV_TAG:-$(git rev-list --max-parents=0 HEAD)}..HEAD --pretty=format:"%s" --no-merges | \
+            grep -i "^docs" | sed 's/^/- /' >> categorized_changelog.md || echo "No documentation updates" >> categorized_changelog.md
+          
+          echo "" >> categorized_changelog.md
+          echo "## 🔧 Maintenance" >> categorized_changelog.md
+          git log ${PREV_TAG:-$(git rev-list --max-parents=0 HEAD)}..HEAD --pretty=format:"%s" --no-merges | \
+            grep -iE "^(chore|refactor|ci|build)" | sed 's/^/- /' >> categorized_changelog.md || echo "No maintenance updates" >> categorized_changelog.md
+          
+          cat categorized_changelog.md
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: |
+            changelog.txt
+            categorized_changelog.md
+
+  create-release:
+    name: Create GitHub Release
+    needs: generate-changelog
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.generate-changelog.outputs.version }}
+          name: Release ${{ needs.generate-changelog.outputs.version }}
+          body_path: categorized_changelog.md
+          draft: false
+          prerelease: ${{ contains(needs.generate-changelog.outputs.version, 'rc') || contains(needs.generate-changelog.outputs.version, 'beta') || contains(needs.generate-changelog.outputs.version, 'alpha') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ needs.generate-changelog.outputs.version }}"
+          DATE=$(date +%Y-%m-%d)
+          
+          # Создаём или обновляем CHANGELOG.md
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+          
+          # Добавляем новую версию в начало файла
+          {
+            echo "# Changelog"
+            echo ""
+            echo "## [$VERSION] - $DATE"
+            echo ""
+            cat categorized_changelog.md
+            echo ""
+            tail -n +3 CHANGELOG.md
+          } > CHANGELOG.md.tmp
+          
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+      - name: Commit CHANGELOG.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for ${{ needs.generate-changelog.outputs.version }}" || echo "No changes to commit"
+          git push origin HEAD:main || echo "Failed to push changes"
+
+  notify-release:
+    name: Notify Release
+    needs: [generate-changelog, create-release]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Release summary
+        run: |
+          echo "## 🎉 Release ${{ needs.generate-changelog.outputs.version }} Published!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images pushed to GHCR" >> $GITHUB_STEP_SUMMARY
+          echo "- Electron builds available for download" >> $GITHUB_STEP_SUMMARY
+          echo "- Source code archives" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ needs.generate-changelog.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Full Changelog](https://github.com/${{ github.repository }}/compare/...HEAD)" >> $GITHUB_STEP_SUMMARY

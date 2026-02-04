@@ -26,7 +26,6 @@ import GitLabTab from '~/components/@settings/tabs/gitlab/GitLabTab';
 import SupabaseTab from '~/components/@settings/tabs/supabase/SupabaseTab';
 import VercelTab from '~/components/@settings/tabs/vercel/VercelTab';
 import NetlifyTab from '~/components/@settings/tabs/netlify/NetlifyTab';
-import CloudProvidersTab from '~/components/@settings/tabs/providers/cloud/CloudProvidersTab';
 import LocalProvidersTab from '~/components/@settings/tabs/providers/local/LocalProvidersTab';
 import McpTab from '~/components/@settings/tabs/mcp/McpTab';
 
@@ -39,8 +38,8 @@ interface ControlPanelProps {
 const BETA_TABS = new Set<TabType>(['local-providers', 'mcp']);
 
 const BetaLabel = () => (
-  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-purple-500/10 dark:bg-purple-500/20">
-    <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400">BETA</span>
+  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-blue-500/10 dark:bg-blue-500/20">
+    <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">BETA</span>
   </div>
 );
 
@@ -133,8 +132,6 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         return <FeaturesTab />;
       case 'data':
         return <DataTab />;
-      case 'cloud-providers':
-        return <CloudProvidersTab />;
       case 'local-providers':
         return <LocalProvidersTab />;
       case 'github':
@@ -236,9 +233,9 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
             <div
               className={classNames(
                 'w-[1200px] h-[90vh]',
-                'bg-bolt-elements-background-depth-1',
+                'bg-wl-elements-background-depth-1',
                 'rounded-2xl shadow-2xl',
-                'border border-bolt-elements-borderColor',
+                'border border-wl-elements-borderColor',
                 'flex flex-col overflow-hidden',
                 'relative',
                 'transform transition-all duration-200 ease-out',
@@ -255,9 +252,9 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     {(activeTab || showTabManagement) && (
                       <button
                         onClick={handleBack}
-                        className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-purple-500/10 dark:hover:bg-purple-500/20 group transition-colors duration-150"
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-blue-500/10 dark:hover:bg-blue-500/20 group transition-colors duration-150"
                       >
-                        <div className="i-ph:arrow-left w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
+                        <div className="i-ph:arrow-left w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-500 transition-colors" />
                       </button>
                     )}
                     <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -274,9 +271,9 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     {/* Close Button */}
                     <button
                       onClick={handleClose}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-purple-500/10 dark:hover:bg-purple-500/20 group transition-all duration-200"
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-blue-500/10 dark:hover:bg-blue-500/20 group transition-all duration-200"
                     >
-                      <div className="i-ph:x w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
+                      <div className="i-ph:x w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-500 transition-colors" />
                     </button>
                   </div>
                 </div>

@@ -116,12 +116,12 @@ export function createCommandsMessage(commands: ProjectCommands): Message | null
 
   if (commands.setupCommand) {
     commandString += `
-<boltAction type="shell">${commands.setupCommand}</boltAction>`;
+<whiteLabelAction type="shell">${commands.setupCommand}</whiteLabelAction>`;
   }
 
   if (commands.startCommand) {
     commandString += `
-<boltAction type="start">${commands.startCommand}</boltAction>
+<whiteLabelAction type="start">${commands.startCommand}</whiteLabelAction>
 `;
   }
 
@@ -129,17 +129,17 @@ export function createCommandsMessage(commands: ProjectCommands): Message | null
     role: 'assistant',
     content: `
 ${commands.followupMessage ? `\n\n${commands.followupMessage}` : ''}
-<boltArtifact id="project-setup" title="Project Setup">
+<whiteLabelArtifact id="project-setup" title="Project Setup">
 ${commandString}
-</boltArtifact>`,
+</whiteLabelArtifact>`,
     id: generateId(),
     createdAt: new Date(),
   };
 }
 
-export function escapeBoltArtifactTags(input: string) {
-  // Regular expression to match boltArtifact tags and their content
-  const regex = /(<boltArtifact[^>]*>)([\s\S]*?)(<\/boltArtifact>)/g;
+export function escapeWhiteLabelArtifactTags(input: string) {
+  // Regular expression to match whiteLabelArtifact tags and their content
+  const regex = /(<whiteLabelArtifact[^>]*>)([\s\S]*?)(<\/whiteLabelArtifact>)/g;
 
   return input.replace(regex, (match, openTag, content, closeTag) => {
     // Escape the opening tag
@@ -153,9 +153,9 @@ export function escapeBoltArtifactTags(input: string) {
   });
 }
 
-export function escapeBoltAActionTags(input: string) {
-  // Regular expression to match boltArtifact tags and their content
-  const regex = /(<boltAction[^>]*>)([\s\S]*?)(<\/boltAction>)/g;
+export function escapeWhiteLabelActionTags(input: string) {
+  // Regular expression to match whiteLabelAction tags and their content
+  const regex = /(<whiteLabelAction[^>]*>)([\s\S]*?)(<\/whiteLabelAction>)/g;
 
   return input.replace(regex, (match, openTag, content, closeTag) => {
     // Escape the opening tag
@@ -169,8 +169,8 @@ export function escapeBoltAActionTags(input: string) {
   });
 }
 
-export function escapeBoltTags(input: string) {
-  return escapeBoltArtifactTags(escapeBoltAActionTags(input));
+export function escapeWhiteLabelTags(input: string) {
+  return escapeWhiteLabelArtifactTags(escapeWhiteLabelActionTags(input));
 }
 
 // We have this seperate function to simplify the restore snapshot process in to one single artifact.
@@ -184,12 +184,12 @@ export function createCommandActionsString(commands: ProjectCommands): string {
 
   if (commands.setupCommand) {
     commandString += `
-<boltAction type="shell">${commands.setupCommand}</boltAction>`;
+<whiteLabelAction type="shell">${commands.setupCommand}</whiteLabelAction>`;
   }
 
   if (commands.startCommand) {
     commandString += `
-<boltAction type="start">${commands.startCommand}</boltAction>
+<whiteLabelAction type="start">${commands.startCommand}</whiteLabelAction>
 `;
   }
 
